@@ -48,7 +48,7 @@ class MainHandler(tornado.web.RequestHandler):
         self.render('index.html')
 
 
-# @jwtauth
+@jwtauth
 class RegisterHandler(tornado.web.RequestHandler):
     """
         Registration Handler
@@ -57,14 +57,18 @@ class RegisterHandler(tornado.web.RequestHandler):
     def post(self):
         username = self.get_argument("username")
         password = self.get_argument("password")
-        #group_id = self.get_argument("group_id")
-        #role_id = self.get_argument("role_id")
+        group_id = self.get_argument("group_id")
+        role_id = self.get_argument("role_id")
+
+        # if role_id != '1':
+        #     print('Only available for admin')
         user = User.find_by_username(username)
         if user:
             self.write("Username %s is already registered" % (username))
         else:
             try:
-                User(username, generate_password_hash(password)).save_to_db()
+                User(username, generate_password_hash(
+                    password), group_id, role_id).save_to_db()
             except Exception as e:
                 print('error: ',  e)
             self.write("username %s registered successfully" % (username))
@@ -83,7 +87,8 @@ class AuthHandler(tornado.web.RequestHandler):
         """
 
         self.encoded = jwt.encode({
-            'some': 'payload',
+            'group_id': 'group_id',
+            'role_id': 'role_id',
             'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=600)},
             SECRET,
             algorithm='HS256'
@@ -93,10 +98,6 @@ class AuthHandler(tornado.web.RequestHandler):
         """
             return the generated token
         """
-        response = {'token': self.encoded.decode('ascii')}
-        self.write(response)
-
-    def post(self):
         username = self.get_argument("username")
         password = self.get_argument("password")
         group_id = self.get_argument("group_id")
@@ -109,6 +110,22 @@ class AuthHandler(tornado.web.RequestHandler):
             self.write(response)
         else:
             self.write('Auth Failed!')
+        response = {'token': self.encoded.decode('ascii')}
+        self.write(response)
+
+    # def post(self):
+    #     username = self.get_argument("username")
+    #     password = self.get_argument("password")
+    #     group_id = self.get_argument("group_id")
+    #     role_id = self.get_argument("role_id")
+
+    #     user = User.find_by_username(username)
+    #     if user and check_password_hash(user.password, password):
+    #         print('User authenticated')
+    #         response = {'token': self.encoded.decode('ascii')}
+    #         self.write(response)
+    #     else:
+    #         self.write('Auth Failed!')
 
 
 class Application(tornado.web.Application):
