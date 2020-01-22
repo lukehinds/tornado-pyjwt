@@ -11,18 +11,18 @@
         replace token with your generated token
 
         curl --data "username=luke&password=password" http://localhost:8888/register
-        curl --data "username=luke&password=password" http://localhost:8888/auth 
+        curl --data "username=luke&password=password" http://localhost:8888/auth
 
-    Requirements: 
+    Requirements:
         PyJWT 1.5.2
         Tornado 4.51
         Python 3.6
 
         resources:
         https://gist.github.com/jslvtr/139cf76db7132b53f2b20c5b6a9fa7ad
-        https://github.com/ivanzhirov/tornado-redis-angular-chat/ 
+        https://github.com/ivanzhirov/tornado-redis-angular-chat/
 
-"""    
+"""
 import tornado.ioloop
 import tornado.web
 import jwt
@@ -35,31 +35,39 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 SECRET = 'my_secret_key'
 
-@jwtauth # decorator to enforce auth on Handler
+
+@jwtauth  # decorator to enforce auth on Handler
 class MainHandler(tornado.web.RequestHandler):
     """
         Main page handler.
         Needs Authorization to access it
         because here we're using @jwfath decorator
     """
+
     def get(self, *args, **kwargs):
         self.render('index.html')
 
+
+# @jwtauth
 class RegisterHandler(tornado.web.RequestHandler):
     """
         Registration Handler
     """
-        
+
     def post(self):
         username = self.get_argument("username")
         password = self.get_argument("password")
-        self.write("Your username is %s and password is %s" % (username, password))
-        try:
-            User(username, generate_password_hash(password)).save_to_db()
-        except Exception as e:
-            print('error: ',  e)
-        print('User registered successfully')
-        print(self.request)
+        #group_id = self.get_argument("group_id")
+        #role_id = self.get_argument("role_id")
+        user = User.find_by_username(username)
+        if user:
+            self.write("Username %s is already registered" % (username))
+        else:
+            try:
+                User(username, generate_password_hash(password)).save_to_db()
+            except Exception as e:
+                print('error: ',  e)
+            self.write("username %s registered successfully" % (username))
 
 
 class AuthHandler(tornado.web.RequestHandler):
@@ -68,11 +76,12 @@ class AuthHandler(tornado.web.RequestHandler):
         This method aim to provide a new authorization token
         There is a fake payload (for tutorial purpose)
     """
+
     def prepare(self):
         """
             Encode a new token with JSON Web Token (PyJWT)
         """
-        
+
         self.encoded = jwt.encode({
             'some': 'payload',
             'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=600)},
@@ -90,6 +99,9 @@ class AuthHandler(tornado.web.RequestHandler):
     def post(self):
         username = self.get_argument("username")
         password = self.get_argument("password")
+        group_id = self.get_argument("group_id")
+        role_id = self.get_argument("role_id")
+
         user = User.find_by_username(username)
         if user and check_password_hash(user.password, password):
             print('User authenticated')
@@ -103,13 +115,14 @@ class Application(tornado.web.Application):
     """
         Application main class
     """
+
     def __init__(self):
         base_dir = os.path.dirname(__file__)
         settings = {
             'template_path': os.path.join(base_dir, "templates"),
             'static_path': os.path.join(base_dir, "static"),
-            'debug':True,
-            "xsrf_cookies": False, # change me!
+            'debug': True,
+            "xsrf_cookies": False,  # change me!
         }
 
         tornado.web.Application.__init__(self, [
@@ -117,6 +130,7 @@ class Application(tornado.web.Application):
             tornado.web.url(r"/register", RegisterHandler, name="register"),
             tornado.web.url(r"/", MainHandler, name="main"),
         ], **settings)
+
 
 if __name__ == "__main__":
     app = Application()
