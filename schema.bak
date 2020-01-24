@@ -1,0 +1,11 @@
+PRAGMA foreign_keys=OFF;
+BEGIN TRANSACTION;
+CREATE TABLE users(
+    id INTEGER PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    group_id TEXT NOT NULL,
+    role_id TEXT NOT NULL
+);
+INSERT INTO users VALUES(1,'admin','pbkdf2:sha256:150000$AH82Cqay$2584e80dc0ab1830667738493657cf2ab3cc3d5939ec9bec9c3e0b13eb2f44fa','1','1');
+COMMIT;

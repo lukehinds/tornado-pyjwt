@@ -22,7 +22,13 @@
         https://gist.github.com/jslvtr/139cf76db7132b53f2b20c5b6a9fa7ad
         https://github.com/ivanzhirov/tornado-redis-angular-chat/
 
+        need to decode to get role_id
+        https://pyjwt.readthedocs.io/en/latest/usage.html#encoding-decoding-tokens-with-hs256
+
+        Admin:
+        admin password is 'admin' - the idea being users would change it immediately after deployment
 """
+
 import tornado.ioloop
 import tornado.web
 import jwt
@@ -30,21 +36,24 @@ import datetime
 from tornado.options import define, options
 from auth import jwtauth
 import os.path
-from db import User
+import database
 from werkzeug.security import generate_password_hash, check_password_hash
 
 SECRET = 'my_secret_key'
+PREFIX = 'Bearer '
 
-
-@jwtauth  # decorator to enforce auth on Handler
+@jwtauth
 class MainHandler(tornado.web.RequestHandler):
     """
         Main page handler.
-        Needs Authorization to access it
-        because here we're using @jwfath decorator
+        Needs Authorization to access it with @jwfath decorator
     """
 
     def get(self, *args, **kwargs):
+        # print(self.request.headers)
+        token = self.request.headers.get("Authorization")[len(PREFIX):]
+        decoded = jwt.decode(token, SECRET, algorithms='HS256')
+        print(decoded)
         self.render('index.html')
 
 
@@ -53,79 +62,61 @@ class RegisterHandler(tornado.web.RequestHandler):
     """
         Registration Handler
     """
+    # get_account_details, if account is admin role, than allow them to register user
+    def post(self):
+        token = self.request.headers.get("Authorization")[len(PREFIX):]
+        decoded = jwt.decode(token, SECRET, algorithms='HS256')
+        if  decoded['role_id'] == '1':
+            # add the user
+            username = self.get_argument("username")
+            password = self.get_argument("password")
+            group_id = self.get_argument("group_id")
+            role_id = self.get_argument("role_id")
+            database.create_account(username, password, group_id, role_id)
+            self.write("%s user added successfully" % (username))
+        else:
+            self.write("role_id number %s is not authorised to register new users" % (decoded['role_id']))
 
+class TestRegisterHandler(tornado.web.RequestHandler):
+    """
+        Registration Handler with Auth (for testing only)
+    """
     def post(self):
         username = self.get_argument("username")
         password = self.get_argument("password")
         group_id = self.get_argument("group_id")
         role_id = self.get_argument("role_id")
-
-        # if role_id != '1':
-        #     print('Only available for admin')
-        user = User.find_by_username(username)
-        if user:
-            self.write("Username %s is already registered" % (username))
-        else:
-            try:
-                User(username, generate_password_hash(
-                    password), group_id, role_id).save_to_db()
-            except Exception as e:
-                print('error: ',  e)
-            self.write("username %s registered successfully" % (username))
-
+        database.create_account(username, password, group_id, role_id)
 
 class AuthHandler(tornado.web.RequestHandler):
     """
         Handle to auth method.
-        This method aim to provide a new authorization token
-        There is a fake payload (for tutorial purpose)
+        This method aim to provide a new authorization token upon database credentials success
     """
-
-    def prepare(self):
-        """
-            Encode a new token with JSON Web Token (PyJWT)
-        """
-
-        self.encoded = jwt.encode({
-            'group_id': 'group_id',
-            'role_id': 'role_id',
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=600)},
-            SECRET,
-            algorithm='HS256'
-        )
 
     def get(self, *args, **kwargs):
         """
             return the generated token
         """
+        
         username = self.get_argument("username")
         password = self.get_argument("password")
-        group_id = self.get_argument("group_id")
-        role_id = self.get_argument("role_id")
+        if database.verify_user_credentials(username, password):
+            details = database.get_account_details(username)
+            group_id = details[3]
+            role_id = details[4]
 
-        user = User.find_by_username(username)
-        if user and check_password_hash(user.password, password):
-            print('User authenticated')
+            self.encoded = jwt.encode({
+                'group_id': group_id,
+                'role_id': role_id,
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=600)},
+                SECRET,
+                algorithm='HS256'
+            )
             response = {'token': self.encoded.decode('ascii')}
             self.write(response)
         else:
             self.write('Auth Failed!')
-        response = {'token': self.encoded.decode('ascii')}
-        self.write(response)
-
-    # def post(self):
-    #     username = self.get_argument("username")
-    #     password = self.get_argument("password")
-    #     group_id = self.get_argument("group_id")
-    #     role_id = self.get_argument("role_id")
-
-    #     user = User.find_by_username(username)
-    #     if user and check_password_hash(user.password, password):
-    #         print('User authenticated')
-    #         response = {'token': self.encoded.decode('ascii')}
-    #         self.write(response)
-    #     else:
-    #         self.write('Auth Failed!')
 
 
 class Application(tornado.web.Application):
@@ -145,6 +136,7 @@ class Application(tornado.web.Application):
         tornado.web.Application.__init__(self, [
             tornado.web.url(r"/auth", AuthHandler, name="auth"),
             tornado.web.url(r"/register", RegisterHandler, name="register"),
+            tornado.web.url(r"/testregister", TestRegisterHandler, name="testregister"),
             tornado.web.url(r"/", MainHandler, name="main"),
         ], **settings)
 
