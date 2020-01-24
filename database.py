@@ -1,7 +1,6 @@
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 
-ADMIN_ROLE_ID = '1'
 
 def create_account(username, password, group_id, role_id):
     connection =  sqlite3.connect('data.db')
@@ -14,7 +13,6 @@ def create_account(username, password, group_id, role_id):
     connection.close()
 
 def verify_user_credentials(username, password):
-    print(password)
     connection =  sqlite3.connect('data.db')
     cursor = connection.cursor()
     try:
@@ -22,7 +20,6 @@ def verify_user_credentials(username, password):
                     'SELECT * FROM users WHERE username=?', (username,)).fetchone()
     finally:
          connection.close()
-    print(data[2])
     if data and check_password_hash(data[2], password):
         return data
     else:
@@ -38,12 +35,12 @@ def get_account_details(username):
          connection.close()
     return data
 
-def delete_account():
+def delete_account(username):
+    # Need to make sure admin cannot be deleted.
     connection =  sqlite3.connect('data.db')
     cursor = connection.cursor()
     try:
-        data = cursor.execute(
-                    'DELETE * FROM users WHERE username=?', (username,)).fetchone()
+        cursor.execute("DELETE FROM users WHERE username=?", (username,))
     finally:
-         connection.close()
-    return data
+        connection.commit()
+        connection.close()

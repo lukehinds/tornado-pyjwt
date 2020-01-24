@@ -50,7 +50,7 @@ def return_header_error(handler):
     return_auth_error(handler, INVALID_HEADER_MESSAGE)
 
 
-def jwtauth(handler_class):
+def auth_handler(handler_class):
     """
         Tornado JWT Auth Decorator
     """

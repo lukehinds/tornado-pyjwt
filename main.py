@@ -34,59 +34,13 @@ import tornado.web
 import jwt
 import datetime
 from tornado.options import define, options
-from auth import jwtauth
+from auth import auth_handler
 import os.path
 import database
 from werkzeug.security import generate_password_hash, check_password_hash
 
 SECRET = 'my_secret_key'
 PREFIX = 'Bearer '
-
-@jwtauth
-class MainHandler(tornado.web.RequestHandler):
-    """
-        Main page handler.
-        Needs Authorization to access it with @jwfath decorator
-    """
-
-    def get(self, *args, **kwargs):
-        # print(self.request.headers)
-        token = self.request.headers.get("Authorization")[len(PREFIX):]
-        decoded = jwt.decode(token, SECRET, algorithms='HS256')
-        print(decoded)
-        self.render('index.html')
-
-
-@jwtauth
-class RegisterHandler(tornado.web.RequestHandler):
-    """
-        Registration Handler
-    """
-    # get_account_details, if account is admin role, than allow them to register user
-    def post(self):
-        token = self.request.headers.get("Authorization")[len(PREFIX):]
-        decoded = jwt.decode(token, SECRET, algorithms='HS256')
-        if  decoded['role_id'] == '1':
-            # add the user
-            username = self.get_argument("username")
-            password = self.get_argument("password")
-            group_id = self.get_argument("group_id")
-            role_id = self.get_argument("role_id")
-            database.create_account(username, password, group_id, role_id)
-            self.write("%s user added successfully" % (username))
-        else:
-            self.write("role_id number %s is not authorised to register new users" % (decoded['role_id']))
-
-class TestRegisterHandler(tornado.web.RequestHandler):
-    """
-        Registration Handler with Auth (for testing only)
-    """
-    def post(self):
-        username = self.get_argument("username")
-        password = self.get_argument("password")
-        group_id = self.get_argument("group_id")
-        role_id = self.get_argument("role_id")
-        database.create_account(username, password, group_id, role_id)
 
 class AuthHandler(tornado.web.RequestHandler):
     """
@@ -118,6 +72,59 @@ class AuthHandler(tornado.web.RequestHandler):
         else:
             self.write('Auth Failed!')
 
+@auth_handler
+class MainHandler(tornado.web.RequestHandler):
+    """
+        Main page handler.
+        Needs Authorization to access it with @jwfath decorator
+    """
+
+    def get(self, *args, **kwargs):
+        # print(self.request.headers)
+        token = self.request.headers.get("Authorization")[len(PREFIX):]
+        decoded = jwt.decode(token, SECRET, algorithms='HS256')
+        print(decoded)
+        self.render('index.html')
+
+
+@auth_handler
+class UserHandler(tornado.web.RequestHandler):
+    """
+        Registration Handler
+    """
+    # get_account_details, if account is admin role, than allow them to register user
+    def post(self):
+        token = self.request.headers.get("Authorization")[len(PREFIX):]
+        decoded = jwt.decode(token, SECRET, algorithms='HS256')
+        if  decoded['role_id'] == '1':
+            # add the user
+            username = self.get_argument("username")  # maybe we can move these to __init__
+            password = self.get_argument("password")
+            group_id = self.get_argument("group_id")
+            role_id = self.get_argument("role_id")
+            database.create_account(username, password, group_id, role_id)
+            self.write("%s user added successfully" % (username))
+        else:
+            self.write("role_id number %s is not authorised to register new users" % (decoded['role_id']))
+        
+    def delete(self):
+        token = self.request.headers.get("Authorization")[len(PREFIX):]
+        decoded = jwt.decode(token, SECRET, algorithms='HS256')
+        username = self.get_argument("username") 
+        if  decoded['role_id'] == '1':
+            database.delete_account(username)
+            self.write("%s user deleted successfully" % (username))
+
+class TestRegisterHandler(tornado.web.RequestHandler):
+    """
+        Registration Handler with Auth (for testing only)
+    """
+    def post(self):
+        username = self.get_argument("username")
+        password = self.get_argument("password")
+        group_id = self.get_argument("group_id")
+        role_id = self.get_argument("role_id")
+        database.create_account(username, password, group_id, role_id)
 
 class Application(tornado.web.Application):
     """
@@ -135,7 +142,8 @@ class Application(tornado.web.Application):
 
         tornado.web.Application.__init__(self, [
             tornado.web.url(r"/auth", AuthHandler, name="auth"),
-            tornado.web.url(r"/register", RegisterHandler, name="register"),
+            #tornado.web.url(r"/register", RegisterHandler, name="register"),
+            tornado.web.url(r"/users", UserHandler, name="users"),
             tornado.web.url(r"/testregister", TestRegisterHandler, name="testregister"),
             tornado.web.url(r"/", MainHandler, name="main"),
         ], **settings)
