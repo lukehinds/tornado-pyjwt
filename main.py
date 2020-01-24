@@ -1,42 +1,11 @@
-"""
-    Tornado JSON Web Token example
-
-    Generate a new token:
-        http://localhost:8888/auth
-
-    Request test:
-        - Using the Postman and a "get method" request on <http://localhost:8888> with this header:
-            Authorization:bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzb21lIjoicGF5bG9hZCIsImV4cCI6MTUwMjQ3Mjk5OX0.mTAC5izCCqE71jLWyGQtJRhbj12I79M7qBxbIrieSiE1
-
-        replace token with your generated token
-
-        curl --data "username=luke&password=password" http://localhost:8888/register
-        curl --data "username=luke&password=password" http://localhost:8888/auth
-
-    Requirements:
-        PyJWT 1.5.2
-        Tornado 4.51
-        Python 3.6
-
-        resources:
-        https://gist.github.com/jslvtr/139cf76db7132b53f2b20c5b6a9fa7ad
-        https://github.com/ivanzhirov/tornado-redis-angular-chat/
-
-        need to decode to get role_id
-        https://pyjwt.readthedocs.io/en/latest/usage.html#encoding-decoding-tokens-with-hs256
-
-        Admin:
-        admin password is 'admin' - the idea being users would change it immediately after deployment
-"""
-
+import os.path
 import tornado.ioloop
 import tornado.web
-import jwt
 import datetime
+import jwt
+import database
 from tornado.options import define, options
 from auth import auth_handler
-import os.path
-import database
 from werkzeug.security import generate_password_hash, check_password_hash
 
 SECRET = 'my_secret_key'
@@ -90,7 +59,8 @@ class MainHandler(tornado.web.RequestHandler):
 @auth_handler
 class UserHandler(tornado.web.RequestHandler):
     """
-        Registration Handler
+        Registration Handler to create and delete users.
+        Only allowed for role_id 1 (who is the admin)
     """
     # get_account_details, if account is admin role, than allow them to register user
     def post(self):
